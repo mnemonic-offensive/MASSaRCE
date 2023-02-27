@@ -5,10 +5,9 @@ function Connect-MassWinRM {
     [CmdletBinding()]
     param(
         [string]$Username,      # Use another username
-        [string]$ComputerName,  # Specify one or more computers instead of connecting to all
+        [string[]]$ComputerName,  # Specify one or more computers instead of connecting to all
         [string]$InputFile,     # Read computer list from a file
         [string]$Command =      '$env:computername'
-        #$Timeout=10     # Seconds until connection is aborted
     )
 
     $Cmd = [scriptblock]::Create($Command)
@@ -19,12 +18,10 @@ function Connect-MassWinRM {
     } elseif ($InputFile) {
         $ADComputers = Get-Content -Path $InputFile
     } elseif ($ComputerName){
-        $ADComputers = (Get-ADComputer -Filter * | where Name -eq $ComputerName).Name
+        $ADComputers = $ComputerName
     } else {
         $ADComputers = (Get-ADComputer -Filter *).Name
     }
-
-    # TODO: implement timeout
 
     if ($Username){
         $cred = Get-Credential -UserName $Username -Message "Enter password"
@@ -44,23 +41,30 @@ function Connect-MassRDP {
     [CmdletBinding()]
     param(
         [string]$Username = $env:UserName,      # Use another username
-        [string]$ComputerName,  # Specify one computer instead of connecting to all
+        [string[]]$ComputerName,  # Specify one computer instead of connecting to all
+        [string]$InputFile,       # Read computer list from a file
         [int]$Height = 400,
         [int]$Width = 640
     )
-    
-    if ($ComputerName){
-        $ADComputers = Get-ADComputer -Filter * | where Name -eq $ComputerName
+
+    if ($ComputerName -and $InputFile){
+        Write-Error "Cannot read from text file and command line. Select one"
+        return $null
+    } elseif ($InputFile) {
+        $ADComputers = Get-Content -Path $InputFile
+    } elseif ($ComputerName){
+        $ADComputers = $ComputerName
     } else {
-        $ADComputers = Get-ADComputer -Filter *
+        $ADComputers = (Get-ADComputer -Filter *).Name
     }
+
     
     $cred = Get-Credential -UserName $Username -Message "Enter password"
     
     foreach ($c in $ADComputers) {
-        $answer = Read-Host "Press ENTER to launch RDP to $($c.Name), or 's' to skip"
+        $answer = Read-Host "Press ENTER to launch RDP to $c, or 's' to skip"
         if ($answer -notcontains 's'){
-            Connect-Mstsc -ComputerName $c.Name -Credential $cred -Width $Width -Height $Height
+            Connect-Mstsc -ComputerName $c -Credential $cred -Width $Width -Height $Height
         }
     }
 }
